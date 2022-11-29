@@ -736,6 +736,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gloo-timers"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98c4a8d6391675c6b2ee1a6c8d06e8e2d03605c44cec1270675985a4c2a5500b"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "gloo-utils"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -856,10 +866,12 @@ version = "0.1.0"
 dependencies = [
  "confy",
  "eframe",
+ "gloo-timers",
  "newslib",
  "serde",
  "tracing",
  "tracing-subscriber",
+ "tracing-wasm",
 ]
 
 [[package]]
@@ -2137,6 +2149,17 @@ dependencies = [
  "thread_local",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tracing-wasm"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4575c663a174420fa2d78f4108ff68f65bf2fbb7dd89f33749b6e826b3626e07"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wasm-bindgen",
 ]
 
 [[package]]

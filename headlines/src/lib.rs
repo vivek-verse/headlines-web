@@ -84,6 +84,7 @@ use eframe::wasm_bindgen::{self, prelude::*};
 #[wasm_bindgen]
 pub fn main_web(canvas_id : &str){
     let headlines = Headlines::new();
+    tracing_wasm::set_as_global_default();
     let web_options = eframe::WebOptions::default();
     eframe::start_web(canvas_id, web_options, Box::new(|_| Box::new(headlines)));
 }

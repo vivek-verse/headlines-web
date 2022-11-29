@@ -8,7 +8,7 @@ use eframe::egui::{
 
 use serde::{Serialize, Deserialize};
 use confy;
-use newslib::NewsAPI;
+use newslib::{NewsAPI, NewsAPIResponse};
 
 pub const PADDING: f32 = 5.0;
 const WHITE: Color32 = Color32::from_rgb(255, 255, 255);
@@ -158,7 +158,7 @@ impl Headlines {
         });
     }
 
-    pub fn load_data(&mut self){
+    pub async fn load_data(&mut self){
         if !self.data_is_set && !self.config.api_key.is_empty() && self.config.api_key.len() == 32 {
 
             let api_key = &self.config.api_key;
@@ -169,8 +169,10 @@ impl Headlines {
 
             self.news_rx = Some(news_rx);
         
+            #[cfg(not(target_arch="wasm32"))]
             let response = NewsAPI::new(&api_key).fetch().expect("Failed to load articles");
             
+            #[cfg(not(target_arch="wasm32"))]
             thread::spawn(move ||{
                     let resp_articles = response.articles();
                     for a in resp_articles.iter(){
@@ -185,6 +187,15 @@ impl Headlines {
                         }
                     }
             });
+
+            #[cfg(target_arch = "wasm32")]
+            let response : NewsAPIResponse = NewsAPI::new(&api_key).fetch_web().await.expect("Failed to load articles");
+
+            #[cfg(target_arch = "wasm32")]
+            gloo_timers::callback::Timeout::new(10, ||{
+                
+            }).forget();
+
             self.data_is_set = true;
         }
     }
