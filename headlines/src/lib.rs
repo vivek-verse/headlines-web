@@ -11,10 +11,14 @@ use eframe::{
 impl App for Headlines {
 
     fn post_rendering(&mut self, _window_size_px: [u32; 2], _frame: &eframe::Frame) {
+        tracing::error!("Came in post rendering");
         self.load_data();
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+
+        tracing::error!("came in update!");
+
         ctx.request_repaint();
         if self.config.dark_mode {
             ctx.set_visuals(Visuals::dark());

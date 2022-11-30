@@ -5,7 +5,6 @@ use eframe::egui::{
     Align, Color32, FontData, FontDefinitions, FontFamily, Hyperlink, Label, Layout, RichText,
     Separator,
 };
-
 use serde::{Serialize, Deserialize};
 use confy;
 use newslib::{NewsAPI, NewsAPIResponse};
@@ -115,6 +114,7 @@ impl Headlines {
                     let refresh_btn = ui.add(Button::new("🔄"));
                     
                     if refresh_btn.clicked() {
+                        tracing::info!("Refresh clicked!");
                         self.refresh_data();
                     }
 
@@ -142,12 +142,12 @@ impl Headlines {
             ui.label("Enter your API KEY for newsapi.org");
             let text_input = ui.text_edit_singleline(&mut self.config.api_key);
             if text_input.lost_focus() && ui.input().key_pressed(egui::Key::Enter){
-                if let Err(e) = confy::store("headlines","headlines",  HeadlinesConfig {
-                    dark_mode: self.config.dark_mode,
-                    api_key: self.config.api_key.to_string()
-                }){
-                    tracing::error!("Failed saving app store: {}", e);
-                }
+                // if let Err(e) = confy::store("headlines","headlines",  HeadlinesConfig {
+                //     dark_mode: self.config.dark_mode,
+                //     api_key: self.config.api_key.to_string()
+                // }){
+                //     tracing::error!("Failed saving app store: {}", e);
+                // }
 
                 self.api_key_initialized = true;
 
@@ -158,7 +158,7 @@ impl Headlines {
         });
     }
 
-    pub async fn load_data(&mut self){
+    pub fn load_data(&mut self){
         if !self.data_is_set && !self.config.api_key.is_empty() && self.config.api_key.len() == 32 {
 
             let api_key = &self.config.api_key;
@@ -169,6 +169,9 @@ impl Headlines {
 
             self.news_rx = Some(news_rx);
         
+            let api_key_web = api_key.clone();
+            let news_tx_web = news_tx.clone();
+
             #[cfg(not(target_arch="wasm32"))]
             let response = NewsAPI::new(&api_key).fetch().expect("Failed to load articles");
             
@@ -189,18 +192,38 @@ impl Headlines {
             });
 
             #[cfg(target_arch = "wasm32")]
-            let response : NewsAPIResponse = NewsAPI::new(&api_key).fetch_web().await.expect("Failed to load articles");
-
-            #[cfg(target_arch = "wasm32")]
-            gloo_timers::callback::Timeout::new(10, ||{
-                
+            gloo_timers::callback::Timeout::new(10, move ||{
+                wasm_bindgen_futures::spawn_local(async {
+                    Self::fetch_web(api_key_web, news_tx_web).await;
+                });
             }).forget();
 
             self.data_is_set = true;
         }
     }
 
+
+    #[cfg(target_arch = "wasm32")]
+    async fn fetch_web(api_key : String, news_tx: std::sync::mpsc::Sender<NewsCardData>){
+        let response : NewsAPIResponse = NewsAPI::new(&api_key).fetch_web().await.expect("Failed to load articles");
+        let resp_articles = response.articles();
+        for a in resp_articles.iter(){
+            let news = NewsCardData {
+                title : a.title().to_string(),
+                url: a.url().to_string(),
+                desc: a.desc().map(|s| s.to_string()).unwrap_or("...".to_string())
+            };
+
+            tracing::info!("News came is {:#?}", news);
+
+            if let Err(e) = news_tx.send(news){
+                tracing::error!("Error sending news data: {}", e);
+            }
+        }
+    }
+
     pub fn refresh_data(&mut self){
+        tracing::info!("Refresh Data Called");
         self.data_is_set = false;
         self.articles = vec![];
         self.load_data();
