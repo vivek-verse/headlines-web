@@ -1,4 +1,4 @@
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::{sync::mpsc::channel, thread};
 use eframe::egui::{self, Button, TopBottomPanel, Window};
 use eframe::egui::{
@@ -32,6 +32,7 @@ pub struct Headlines {
     pub config: HeadlinesConfig,
     pub api_key_initialized : bool,
     pub data_is_set: bool,
+    pub initial_is_set: bool,
     pub news_rx: Option<Receiver<NewsCardData>>
 }
 
@@ -50,7 +51,8 @@ impl Headlines {
             articles: vec![],
             config,
             news_rx : None,
-            data_is_set : false
+            data_is_set : false,
+            initial_is_set : false
         }
     }
 
@@ -114,7 +116,6 @@ impl Headlines {
                     let refresh_btn = ui.add(Button::new("🔄"));
                     
                     if refresh_btn.clicked() {
-                        tracing::info!("Refresh clicked!");
                         self.refresh_data();
                     }
 
@@ -152,7 +153,6 @@ impl Headlines {
                 self.api_key_initialized = true;
 
             }
-            tracing::error!("{}", &self.config.api_key);
             ui.label("If you havn't registered forr the API_KEY, head over to");
             ui.hyperlink("https://newsapi.org");
         });
@@ -169,9 +169,6 @@ impl Headlines {
 
             self.news_rx = Some(news_rx);
         
-            let api_key_web = api_key.clone();
-            let news_tx_web = news_tx.clone();
-
             #[cfg(not(target_arch="wasm32"))]
             let response = NewsAPI::new(&api_key).fetch().expect("Failed to load articles");
             
@@ -193,8 +190,8 @@ impl Headlines {
 
             #[cfg(target_arch = "wasm32")]
             gloo_timers::callback::Timeout::new(10, move ||{
-                wasm_bindgen_futures::spawn_local(async {
-                    Self::fetch_web(api_key_web, news_tx_web).await;
+                wasm_bindgen_futures::spawn_local(async move {
+                    Self::fetch_web(api_key, news_tx).await;
                 });
             }).forget();
 
@@ -214,8 +211,6 @@ impl Headlines {
                 desc: a.desc().map(|s| s.to_string()).unwrap_or("...".to_string())
             };
 
-            tracing::info!("News came is {:#?}", news);
-
             if let Err(e) = news_tx.send(news){
                 tracing::error!("Error sending news data: {}", e);
             }
@@ -223,7 +218,6 @@ impl Headlines {
     }
 
     pub fn refresh_data(&mut self){
-        tracing::info!("Refresh Data Called");
         self.data_is_set = false;
         self.articles = vec![];
         self.load_data();
@@ -236,8 +230,13 @@ impl Headlines {
                     self.articles.push(news_data);
                 },
                 Err(e) => {
-                    self.news_rx = None;
-                    tracing::warn!("Error receiving msg: {}", e)
+                    match e {
+                        TryRecvError::Empty => {
+                        },
+                        TryRecvError::Disconnected => {
+                            self.news_rx = None;
+                        }
+                    }
                 }
             }
         }
