@@ -1,17 +1,30 @@
 pub mod headlines;
 
-
-pub use headlines::{Headlines, PADDING};
 use eframe::egui::{self, Hyperlink, Label, RichText, TopBottomPanel, Ui, Visuals};
+use eframe::Storage;
 use eframe::{
     egui::{CentralPanel, ScrollArea, Separator},
     App,
 };
+use headlines::HeadlinesConfig;
+pub use headlines::{Headlines, PADDING};
 
 impl App for Headlines {
+    fn save(&mut self, storage: &mut dyn Storage) {
+        eframe::set_value(storage, "headlines", &self.config);
+    }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         ctx.request_repaint();
+        if let Some(storage) = frame.storage() {
+            let values: HeadlinesConfig =
+                eframe::get_value(storage, "headlines").unwrap_or_default();
+            if !values.api_key.is_empty() {
+                self.config.api_key = values.api_key;
+                self.api_key_initialized = true;
+            }
+        }
+
         if self.config.dark_mode {
             ctx.set_visuals(Visuals::dark());
         } else {
@@ -19,7 +32,6 @@ impl App for Headlines {
         }
 
         if !self.initial_is_set && self.api_key_initialized {
-            tracing::info!("Here in initial is set");
             self.load_data();
             self.initial_is_set = true;
         }
@@ -29,8 +41,8 @@ impl App for Headlines {
         }
 
         if !self.api_key_initialized {
-            self.render_config(ctx);            
-        }else{
+            self.render_config(ctx);
+        } else {
             self.render_top_panel(ctx, frame);
             CentralPanel::default().show(ctx, |ui| {
                 render_header(ui);
@@ -41,7 +53,6 @@ impl App for Headlines {
             });
             self.configure_fonts(ctx);
         }
-
     }
 }
 
@@ -84,7 +95,7 @@ use eframe::wasm_bindgen::{self, prelude::*};
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub fn main_web(canvas_id : &str){
+pub fn main_web(canvas_id: &str) {
     let headlines = Headlines::new();
     tracing_wasm::set_as_global_default();
     let web_options = eframe::WebOptions::default();
